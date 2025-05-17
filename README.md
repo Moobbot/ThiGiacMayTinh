@@ -117,7 +117,12 @@ BaiTap_TGMT/
 
 1. **Tăng độ sáng (RGB)**: Tăng giá trị của tất cả các kênh màu R, G, B.
 2. **Biến đổi âm bản (RGB)**: Đảo ngược giá trị của tất cả các pixel (255 - giá trị pixel).
-3. **Tăng độ sáng (HSV)**: Tăng giá trị của kênh V (Value) trong không gian màu HSV.
+3. **Tăng độ sáng (HSV)**: Tăng giá trị của kênh V (Value) trong không gian màu HSV với nhiều tùy chọn nâng cao:
+   - Tăng độ sáng cơ bản: Tăng giá trị kênh V đều cho tất cả các pixel
+   - Tăng độ sáng với gamma correction: Điều chỉnh độ sáng phi tuyến (gamma < 1 tăng sáng vùng tối, gamma > 1 tăng sáng vùng sáng)
+   - Tăng độ sáng với bảo vệ vùng sáng: Tránh làm quá sáng các vùng đã sáng
+   - Tăng độ sáng thích ứng: Điều chỉnh mức tăng sáng dựa trên độ sáng trung bình của ảnh
+   - Tăng độ sáng với bảo toàn màu sắc: Tự động điều chỉnh độ bão hòa để giữ nguyên màu sắc
 4. **Tăng độ bão hòa (HSV)**: Tăng giá trị của kênh S (Saturation) trong không gian màu HSV.
 5. **Cân bằng histogram**: Cải thiện độ tương phản của ảnh bằng cách phân phối đều các giá trị pixel.
 6. **Lọc trung bình**: Làm mịn ảnh bằng cách thay thế mỗi pixel bằng giá trị trung bình của các pixel lân cận.
@@ -131,7 +136,10 @@ Các ảnh kết quả được lưu trong thư mục `output` với các tên f
 - `2_anh_xam.jpg`: Ảnh xám
 - `3a_tang_do_sang_rgb.jpg`: Ảnh đã tăng độ sáng trong không gian màu RGB
 - `3b_am_ban_rgb.jpg`: Ảnh âm bản trong không gian màu RGB
-- `4a_tang_do_sang_hsv.jpg`: Ảnh đã tăng độ sáng trong không gian màu HSV
+- `4a_tang_do_sang_hsv.jpg`: Ảnh đã tăng độ sáng cơ bản trong không gian màu HSV
+- `4a1_tang_do_sang_hsv_gamma.jpg`: Ảnh đã tăng độ sáng với gamma correction
+- `4a2_tang_do_sang_hsv_protected.jpg`: Ảnh đã tăng độ sáng với bảo vệ vùng sáng
+- `4a3_tang_do_sang_hsv_adaptive.jpg`: Ảnh đã tăng độ sáng với chế độ thích ứng
 - `4b_tang_do_bao_hoa_hsv.jpg`: Ảnh đã tăng độ bão hòa trong không gian màu HSV
 - `5_can_bang_histogram.jpg`: Ảnh đã cân bằng histogram
 - `6a_loc_trung_binh.jpg`: Ảnh đã lọc trung bình

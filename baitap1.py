@@ -20,7 +20,8 @@ from utils.image_processing import (
     negative_transform_rgb,
     increase_brightness_hsv,
     increase_saturation_hsv,
-    histogram_equalization
+    histogram_equalization,
+    bgr_to_gray
 )
 from utils.filters import mean_filter, median_filter
 
@@ -57,18 +58,16 @@ def main(show_images=True):
 
     logger.info(f"Đọc ảnh thành công. Kích thước: {img.shape}")
 
-    # Giảm kích thước ảnh để tăng tốc độ xử lý
-    logger.info("Đang thay đổi kích thước ảnh để tăng tốc độ xử lý...")
-    img = resize_image_for_display(img, max_width=800, max_height=600)
-    logger.info(f"Kích thước ảnh sau khi thay đổi: {img.shape}")
+    # Sử dụng ảnh với kích thước gốc
+    logger.info("Sử dụng ảnh với kích thước gốc để xử lý...")
 
     # Hiển thị ảnh gốc
     show_image(img, '1. Ảnh gốc')
 
-    # 2. Chuyển sang ảnh xám
-    logger.info("Đang chuyển đổi sang ảnh xám...")
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    show_image(img_gray, '2. Ảnh xám')
+    # 2. Chuyển sang ảnh xám (sử dụng hàm tự cài đặt)
+    logger.info("Đang chuyển đổi sang ảnh xám (sử dụng hàm tự cài đặt)...")
+    img_gray = bgr_to_gray(img)
+    show_image(img_gray, '2. Ảnh xám (tự cài đặt)')
 
     # 3. Xử lý ảnh trong không gian màu RGB
     logger.info("Đang áp dụng các kỹ thuật xử lý ảnh trong không gian màu RGB...")
@@ -87,10 +86,28 @@ def main(show_images=True):
     # Chuyển đổi sang HSV
     img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    # Tăng độ sáng HSV
+    # Tăng độ sáng HSV (phiên bản cơ bản)
     img_bright_hsv = increase_brightness_hsv(img_hsv, 50)
     img_bright_hsv_bgr = cv2.cvtColor(img_bright_hsv, cv2.COLOR_HSV2BGR)
     show_image(img_bright_hsv_bgr, '4a. Tăng độ sáng (HSV)')
+
+    # Tăng độ sáng HSV với gamma correction (tăng sáng vùng tối)
+    logger.info("Đang áp dụng tăng độ sáng HSV với gamma correction...")
+    img_bright_hsv_gamma = increase_brightness_hsv(img_hsv, 50, gamma=0.7)
+    img_bright_hsv_gamma_bgr = cv2.cvtColor(img_bright_hsv_gamma, cv2.COLOR_HSV2BGR)
+    show_image(img_bright_hsv_gamma_bgr, '4a1. Tăng độ sáng (HSV) với gamma=0.7')
+
+    # Tăng độ sáng HSV với bảo vệ vùng sáng
+    logger.info("Đang áp dụng tăng độ sáng HSV với bảo vệ vùng sáng...")
+    img_bright_hsv_protected = increase_brightness_hsv(img_hsv, 50, protect_highlights=True)
+    img_bright_hsv_protected_bgr = cv2.cvtColor(img_bright_hsv_protected, cv2.COLOR_HSV2BGR)
+    show_image(img_bright_hsv_protected_bgr, '4a2. Tăng độ sáng (HSV) với bảo vệ vùng sáng')
+
+    # Tăng độ sáng HSV với chế độ thích ứng
+    logger.info("Đang áp dụng tăng độ sáng HSV với chế độ thích ứng...")
+    img_bright_hsv_adaptive = increase_brightness_hsv(img_hsv, 50, adaptive=True)
+    img_bright_hsv_adaptive_bgr = cv2.cvtColor(img_bright_hsv_adaptive, cv2.COLOR_HSV2BGR)
+    show_image(img_bright_hsv_adaptive_bgr, '4a3. Tăng độ sáng (HSV) với chế độ thích ứng')
 
     # Tăng độ bão hòa HSV
     img_saturated_hsv = increase_saturation_hsv(img_hsv, 50)
@@ -115,10 +132,13 @@ def main(show_images=True):
     logger.info("Đang lưu kết quả...")
     images_to_save = {
         '1_anh_goc.jpg': img,
-        '2_anh_xam.jpg': img_gray,
+        '2_anh_xam_tu_cai_dat.jpg': img_gray,
         '3a_tang_do_sang_rgb.jpg': img_bright,
         '3b_am_ban_rgb.jpg': img_negative,
         '4a_tang_do_sang_hsv.jpg': img_bright_hsv_bgr,
+        '4a1_tang_do_sang_hsv_gamma.jpg': img_bright_hsv_gamma_bgr,
+        '4a2_tang_do_sang_hsv_protected.jpg': img_bright_hsv_protected_bgr,
+        '4a3_tang_do_sang_hsv_adaptive.jpg': img_bright_hsv_adaptive_bgr,
         '4b_tang_do_bao_hoa_hsv.jpg': img_saturated_hsv_bgr,
         '5_can_bang_histogram.jpg': img_equalized,
         '6a_loc_trung_binh.jpg': img_mean_filtered,

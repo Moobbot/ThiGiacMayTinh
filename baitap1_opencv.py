@@ -99,16 +99,14 @@ def main(show_images=True):
 
     logger.info(f"Đọc ảnh thành công. Kích thước: {img.shape}")
 
-    # Giảm kích thước ảnh để tăng tốc độ xử lý
-    logger.info("Đang thay đổi kích thước ảnh để tăng tốc độ xử lý...")
-    img = resize_image_for_display(img, max_width=800, max_height=600)
-    logger.info(f"Kích thước ảnh sau khi thay đổi: {img.shape}")
+    # Sử dụng ảnh với kích thước gốc
+    logger.info("Sử dụng ảnh với kích thước gốc để xử lý...")
 
     # Hiển thị ảnh gốc
     show_image(img, '1. Ảnh gốc (OpenCV)')
 
-    # 2. Chuyển sang ảnh xám
-    logger.info("Đang chuyển đổi sang ảnh xám...")
+    # 2. Chuyển sang ảnh xám (sử dụng hàm có sẵn của OpenCV)
+    logger.info("Đang chuyển đổi sang ảnh xám (sử dụng hàm có sẵn của OpenCV)...")
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     show_image(img_gray, '2. Ảnh xám (OpenCV)')
 
@@ -133,12 +131,68 @@ def main(show_images=True):
     # Chuyển đổi sang HSV
     img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    # Tăng độ sáng HSV (kênh V)
+    # Tăng độ sáng HSV (kênh V) - phương pháp cơ bản
     logger.info("Tăng độ sáng (HSV) bằng cách tăng kênh V...")
     img_bright_hsv = img_hsv.copy()
     img_bright_hsv[:, :, 2] = cv2.add(img_bright_hsv[:, :, 2], 50)  # Tăng kênh V
     img_bright_hsv_bgr = cv2.cvtColor(img_bright_hsv, cv2.COLOR_HSV2BGR)
     show_image(img_bright_hsv_bgr, '4a. Tăng độ sáng (HSV) - OpenCV')
+
+    # Tăng độ sáng HSV với gamma correction
+    logger.info("Tăng độ sáng (HSV) với gamma correction...")
+    img_bright_hsv_gamma = img_hsv.copy()
+
+    # Tạo bảng LUT (Look-Up Table) cho gamma correction
+    gamma = 0.7
+    lut = np.zeros(256, dtype=np.uint8)
+    for i in range(256):
+        # Chuẩn hóa, áp dụng gamma, tăng độ sáng, và đảm bảo giá trị trong khoảng [0, 255]
+        lut[i] = np.clip(int(((i / 255.0) ** (1.0/gamma)) * 255.0 + 50), 0, 255)
+
+    # Áp dụng LUT cho kênh V
+    img_bright_hsv_gamma[:, :, 2] = cv2.LUT(img_bright_hsv_gamma[:, :, 2], lut)
+    img_bright_hsv_gamma_bgr = cv2.cvtColor(img_bright_hsv_gamma, cv2.COLOR_HSV2BGR)
+    show_image(img_bright_hsv_gamma_bgr, '4a1. Tăng độ sáng (HSV) với gamma=0.7 - OpenCV')
+
+    # Tăng độ sáng HSV với bảo vệ vùng sáng
+    logger.info("Tăng độ sáng (HSV) với bảo vệ vùng sáng...")
+    img_bright_hsv_protected = img_hsv.copy()
+    v_channel = img_bright_hsv_protected[:, :, 2]
+
+    # Tạo bảng LUT cho bảo vệ vùng sáng
+    lut_protected = np.zeros(256, dtype=np.uint8)
+    for i in range(256):
+        if i > 200:
+            # Giảm dần hệ số tăng sáng cho các vùng sáng
+            factor = 1.0 - (i - 200) / 55.0
+            factor = max(0.0, min(1.0, factor))
+            lut_protected[i] = np.clip(i + int(50 * factor), 0, 255)
+        else:
+            # Tăng sáng bình thường cho các vùng không quá sáng
+            lut_protected[i] = np.clip(i + 50, 0, 255)
+
+    # Áp dụng LUT cho kênh V
+    img_bright_hsv_protected[:, :, 2] = cv2.LUT(v_channel, lut_protected)
+    img_bright_hsv_protected_bgr = cv2.cvtColor(img_bright_hsv_protected, cv2.COLOR_HSV2BGR)
+    show_image(img_bright_hsv_protected_bgr, '4a2. Tăng độ sáng (HSV) với bảo vệ vùng sáng - OpenCV')
+
+    # Tăng độ sáng HSV với chế độ thích ứng
+    logger.info("Tăng độ sáng (HSV) với chế độ thích ứng...")
+    img_bright_hsv_adaptive = img_hsv.copy()
+    v_channel = img_bright_hsv_adaptive[:, :, 2]
+
+    # Tính giá trị trung bình của kênh V sử dụng OpenCV
+    mean_v = cv2.mean(v_channel)[0]
+
+    # Điều chỉnh giá trị tăng sáng dựa trên độ sáng trung bình
+    # Nếu ảnh tối, tăng nhiều hơn; nếu ảnh sáng, tăng ít hơn
+    adaptive_value = int(50 * (1.0 - mean_v / 255.0) * 2.0)
+    adaptive_value = max(min(adaptive_value, 100), 25)  # Giới hạn trong khoảng [25, 100]
+
+    # Áp dụng tăng sáng thích ứng
+    img_bright_hsv_adaptive[:, :, 2] = cv2.add(v_channel, adaptive_value)
+    img_bright_hsv_adaptive_bgr = cv2.cvtColor(img_bright_hsv_adaptive, cv2.COLOR_HSV2BGR)
+    show_image(img_bright_hsv_adaptive_bgr, '4a3. Tăng độ sáng (HSV) với chế độ thích ứng - OpenCV')
 
     # Tăng độ bão hòa HSV (kênh S)
     logger.info("Tăng độ bão hòa (HSV) bằng cách tăng kênh S...")
@@ -169,6 +223,9 @@ def main(show_images=True):
         '3a_tang_do_sang_rgb.jpg': img_bright,
         '3b_am_ban_rgb.jpg': img_negative,
         '4a_tang_do_sang_hsv.jpg': img_bright_hsv_bgr,
+        '4a1_tang_do_sang_hsv_gamma.jpg': img_bright_hsv_gamma_bgr,
+        '4a2_tang_do_sang_hsv_protected.jpg': img_bright_hsv_protected_bgr,
+        '4a3_tang_do_sang_hsv_adaptive.jpg': img_bright_hsv_adaptive_bgr,
         '4b_tang_do_bao_hoa_hsv.jpg': img_saturated_hsv_bgr,
         '5_can_bang_histogram.jpg': img_equalized,
         '6a_loc_trung_binh.jpg': img_mean_filtered,
