@@ -31,8 +31,8 @@ def main(show_images=True):
         show_images: Nếu True, hiển thị ảnh trong quá trình xử lý.
                     Nếu False, chỉ xử lý và lưu ảnh mà không hiển thị.
     """
-    # Thiết lập logging
-    logger = setup_logging(log_dir='logs')
+    # Thiết lập logging với các tham số mặc định
+    logger = setup_logging(log_dir='logs', logger_name='baitap1', log_prefix='baitap1_log')
 
     start_time = time.time()
     logger.info("Bắt đầu chương trình xử lý ảnh")
