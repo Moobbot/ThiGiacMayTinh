@@ -8,7 +8,6 @@ import numpy as np
 import os
 import time
 import argparse
-import logging
 
 # Import setup_logging từ utils.logger
 from utils.logger import setup_logging

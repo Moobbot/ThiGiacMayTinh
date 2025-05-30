@@ -129,6 +129,202 @@ def create_comparison_image(img1, img2, title1, title2, metrics):
     plt.tight_layout()
     return plt.gcf()
 
+def create_three_way_comparison(original_img, custom_img, opencv_img, filename, comparison_dir):
+    """Tạo ảnh so sánh ba chiều: ảnh gốc, ảnh từ phương pháp tự cài đặt, và ảnh từ OpenCV
+
+    Args:
+        original_img: Ảnh gốc trước khi xử lý
+        custom_img: Ảnh từ phương pháp tự cài đặt
+        opencv_img: Ảnh từ phương pháp OpenCV
+        filename: Tên file ảnh
+        comparison_dir: Thư mục lưu kết quả so sánh
+    """
+    # Tạo ảnh so sánh với matplotlib
+    plt.figure(figsize=(15, 5))
+
+    # Hiển thị ảnh gốc
+    plt.subplot(1, 3, 1)
+    if len(original_img.shape) == 3:
+        plt.imshow(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
+    else:
+        plt.imshow(original_img, cmap='gray')
+    plt.title('Ảnh gốc')
+    plt.axis('off')
+
+    # Hiển thị ảnh từ phương pháp tự cài đặt
+    plt.subplot(1, 3, 2)
+    if len(custom_img.shape) == 3:
+        plt.imshow(cv2.cvtColor(custom_img, cv2.COLOR_BGR2RGB))
+    else:
+        plt.imshow(custom_img, cmap='gray')
+    plt.title(f'Tự cài đặt: {filename}')
+    plt.axis('off')
+
+    # Hiển thị ảnh từ OpenCV
+    plt.subplot(1, 3, 3)
+    if len(opencv_img.shape) == 3:
+        plt.imshow(cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB))
+    else:
+        plt.imshow(opencv_img, cmap='gray')
+    plt.title(f'OpenCV: {filename}')
+    plt.axis('off')
+
+    plt.tight_layout()
+
+    # Lưu ảnh so sánh
+    comparison_path = os.path.join(comparison_dir, f"three_way_{filename}")
+    plt.savefig(comparison_path, dpi=150)
+    plt.close()
+
+    return comparison_path
+
+def create_detailed_comparison(img1, img2, filename, metrics, comparison_dir):
+    """Tạo ảnh so sánh chi tiết giữa hai ảnh, tương tự như so sánh ảnh xám
+
+    Args:
+        img1: Ảnh từ phương pháp tự cài đặt
+        img2: Ảnh từ phương pháp OpenCV
+        filename: Tên file ảnh
+        metrics: Dictionary chứa các chỉ số so sánh
+        comparison_dir: Thư mục lưu kết quả so sánh
+    """
+    # Chuyển sang ảnh xám nếu là ảnh màu để tính toán sự khác biệt
+    if len(img1.shape) == 3:
+        img1_gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+        img2_gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    else:
+        img1_gray = img1
+        img2_gray = img2
+
+    # Tạo ảnh hiển thị sự khác biệt
+    diff = cv2.absdiff(img1_gray, img2_gray)
+    diff_enhanced = cv2.convertScaleAbs(diff, alpha=10)  # Tăng độ tương phản để dễ nhìn
+    cv2.imwrite(os.path.join(comparison_dir, f"diff_{filename}"), diff_enhanced)
+
+    # Tạo ảnh so sánh chi tiết với matplotlib
+    plt.figure(figsize=(15, 10))
+
+    # Hiển thị ảnh gốc từ phương pháp tự cài đặt
+    plt.subplot(2, 2, 1)
+    if len(img1.shape) == 3:
+        plt.imshow(cv2.cvtColor(img1, cv2.COLOR_BGR2RGB))
+    else:
+        plt.imshow(img1, cmap='gray')
+    plt.title(f'Tự cài đặt: {filename}')
+    plt.axis('off')
+
+    # Hiển thị ảnh từ OpenCV
+    plt.subplot(2, 2, 2)
+    if len(img2.shape) == 3:
+        plt.imshow(cv2.cvtColor(img2, cv2.COLOR_BGR2RGB))
+    else:
+        plt.imshow(img2, cmap='gray')
+    plt.title(f'OpenCV: {filename}')
+    plt.axis('off')
+
+    # Hiển thị ảnh xám của cả hai phương pháp
+    plt.subplot(2, 2, 3)
+    plt.imshow(img1_gray, cmap='gray')
+    plt.title('Ảnh xám (tự cài đặt)')
+    plt.axis('off')
+
+    # Hiển thị sự khác biệt
+    plt.subplot(2, 2, 4)
+    plt.imshow(diff_enhanced, cmap='jet')
+    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.title(f'Sự khác biệt (x10)\nSSIM: {metrics["ssim"]:.4f}, PSNR: {metrics["psnr"]:.2f}dB\nMSE: {metrics["mse"]:.2f}, MAE: {metrics["mae"]:.2f}')
+    plt.axis('off')
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(comparison_dir, f"detailed_{filename}"), dpi=150)
+    plt.close()
+
+    # Tạo ảnh hiển thị sự khác biệt với colormap khác (heatmap)
+    plt.figure(figsize=(10, 8))
+    plt.imshow(diff_enhanced, cmap='jet')
+    plt.colorbar(label='Độ khác biệt')
+    plt.title(f'Sự khác biệt giữa hai phương pháp xử lý ảnh: {filename}\nSSIM: {metrics["ssim"]:.4f}, PSNR: {metrics["psnr"]:.2f}dB')
+    plt.axis('off')
+    plt.tight_layout()
+
+    # Lưu ảnh sự khác biệt
+    diff_path = os.path.join(comparison_dir, f"heatmap_{filename}")
+    plt.savefig(diff_path, dpi=150)
+    plt.close()
+
+    # Nếu là ảnh màu, tạo thêm histogram cho từng kênh màu
+    if len(img1.shape) == 3:
+        # Tạo histogram cho từng kênh màu
+        plt.figure(figsize=(15, 10))
+
+        # Kênh B
+        plt.subplot(3, 2, 1)
+        plt.hist(img1[:,:,0].ravel(), 256, [0, 256], color='blue', alpha=0.7)
+        plt.title('Histogram kênh B (tự cài đặt)')
+        plt.xlabel('Giá trị pixel')
+        plt.ylabel('Số lượng pixel')
+
+        plt.subplot(3, 2, 2)
+        plt.hist(img2[:,:,0].ravel(), 256, [0, 256], color='blue', alpha=0.7)
+        plt.title('Histogram kênh B (OpenCV)')
+        plt.xlabel('Giá trị pixel')
+        plt.ylabel('Số lượng pixel')
+
+        # Kênh G
+        plt.subplot(3, 2, 3)
+        plt.hist(img1[:,:,1].ravel(), 256, [0, 256], color='green', alpha=0.7)
+        plt.title('Histogram kênh G (tự cài đặt)')
+        plt.xlabel('Giá trị pixel')
+        plt.ylabel('Số lượng pixel')
+
+        plt.subplot(3, 2, 4)
+        plt.hist(img2[:,:,1].ravel(), 256, [0, 256], color='green', alpha=0.7)
+        plt.title('Histogram kênh G (OpenCV)')
+        plt.xlabel('Giá trị pixel')
+        plt.ylabel('Số lượng pixel')
+
+        # Kênh R
+        plt.subplot(3, 2, 5)
+        plt.hist(img1[:,:,2].ravel(), 256, [0, 256], color='red', alpha=0.7)
+        plt.title('Histogram kênh R (tự cài đặt)')
+        plt.xlabel('Giá trị pixel')
+        plt.ylabel('Số lượng pixel')
+
+        plt.subplot(3, 2, 6)
+        plt.hist(img2[:,:,2].ravel(), 256, [0, 256], color='red', alpha=0.7)
+        plt.title('Histogram kênh R (OpenCV)')
+        plt.xlabel('Giá trị pixel')
+        plt.ylabel('Số lượng pixel')
+
+        plt.tight_layout()
+
+        # Lưu histogram
+        hist_path = os.path.join(comparison_dir, f"histogram_{filename}")
+        plt.savefig(hist_path, dpi=150)
+        plt.close()
+    else:
+        # Tạo histogram cho ảnh xám
+        plt.figure(figsize=(12, 6))
+
+        plt.subplot(1, 2, 1)
+        plt.hist(img1.ravel(), 256, [0, 256], color='blue', alpha=0.7)
+        plt.title('Histogram (tự cài đặt)')
+        plt.xlabel('Mức xám')
+        plt.ylabel('Số lượng pixel')
+
+        plt.subplot(1, 2, 2)
+        plt.hist(img2.ravel(), 256, [0, 256], color='red', alpha=0.7)
+        plt.title('Histogram (OpenCV)')
+        plt.xlabel('Mức xám')
+        plt.ylabel('Số lượng pixel')
+
+        plt.tight_layout()
+
+        # Lưu histogram
+        hist_path = os.path.join(comparison_dir, f"histogram_{filename}")
+        plt.savefig(hist_path, dpi=150)
+        plt.close()
+
 def compare_grayscale_from_files():
     """So sánh kết quả chuyển đổi ảnh xám từ các file đã lưu"""
     # Đường dẫn đến các file ảnh xám
@@ -385,7 +581,15 @@ def main():
     print("\n2. SO SÁNH TỪ CÁC FILE ĐÃ LƯU")
     print("-" * 40)
     # So sánh từ các file đã lưu
-    file_metrics = compare_grayscale_from_files()
+    compare_grayscale_from_files()
+
+    # Đọc ảnh gốc để sử dụng trong so sánh ba chiều
+    original_img = cv2.imread(img_path)
+    if original_img is None:
+        print(f"Không thể đọc ảnh gốc từ {img_path}")
+        original_img = None
+    else:
+        print(f"Đã đọc ảnh gốc thành công. Kích thước: {original_img.shape}")
 
     # Tải các cặp ảnh
     print("Đang tải các cặp ảnh để so sánh...")
@@ -411,7 +615,7 @@ def main():
             **metrics
         })
 
-        # Tạo ảnh so sánh
+        # Tạo ảnh so sánh cơ bản
         fig = create_comparison_image(
             custom_img, opencv_img,
             f"Tự viết: {filename}",
@@ -423,6 +627,15 @@ def main():
         comparison_path = os.path.join(comparison_dir, f"compare_{filename}")
         fig.savefig(comparison_path, dpi=150)
         plt.close(fig)
+
+        # Tạo ảnh so sánh chi tiết (giống như so sánh ảnh xám)
+        create_detailed_comparison(custom_img, opencv_img, filename, metrics, comparison_dir)
+
+        # Tạo ảnh so sánh ba chiều (ảnh gốc, ảnh tự làm, ảnh opencv)
+        if original_img is not None:
+            # Chỉ tạo so sánh ba chiều nếu có ảnh gốc
+            create_three_way_comparison(original_img, custom_img, opencv_img, filename, comparison_dir)
+            print(f"  Đã tạo so sánh ba chiều: three_way_{filename}")
 
         print(f"  SSIM: {metrics['ssim']:.4f}, PSNR: {metrics['psnr']:.2f}dB")
         print(f"  MSE: {metrics['mse']:.2f}, MAE: {metrics['mae']:.2f}")
