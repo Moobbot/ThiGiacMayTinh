@@ -1,3 +1,40 @@
+"""
+Orange Detection and Counting System
+
+This script implements a computer vision system for detecting and counting oranges in a video stream.
+It uses a combination of background subtraction, color filtering, and contour detection to identify
+oranges and track them across frames. The system counts oranges that pass through a defined region
+of interest (ROI).
+
+Key Features:
+- Real-time orange detection using color and motion analysis
+- Background subtraction for improved detection
+- Object tracking with centroid-based tracking
+- Region of Interest (ROI) based counting
+- CSV logging of detection counts
+- Visual output with bounding boxes and count labels
+- Progress bar for processing status
+
+Dependencies:
+    - OpenCV (cv2)
+    - NumPy
+    - tqdm
+    - csv
+    - os
+
+Usage:
+    Run the script directly. The video path, log file, and output video paths are configured
+    in the script. Adjust parameters like scale, blur size, and color thresholds as needed.
+
+Parameters:
+    - scale: Scaling factor for input frames (default: 0.5)
+    - blur_ksize: Kernel size for Gaussian blur (default: (7,7))
+    - MIN_AREA: Minimum contour area for orange detection (default: 400)
+    - DIST_THRESH: Distance threshold for object tracking (default: 40)
+    - MAX_MISSED: Maximum frames an object can be missed before removal (default: 5)
+    - playback_speed: Video playback speed multiplier (default: 0.5)
+"""
+
 import cv2
 import numpy as np
 import csv
@@ -6,7 +43,20 @@ from tqdm import tqdm
 
 
 def validate_inputs(video_path, log_file, output_video):
-    """Validate input files and paths."""
+    """
+    Validate input files and create necessary directories.
+    
+    Args:
+        video_path (str): Path to the input video file
+        log_file (str): Path to the output CSV log file
+        output_video (str): Path to the output video file
+        
+    Returns:
+        tuple: Absolute paths for video_path, log_file, and output_video
+        
+    Raises:
+        FileNotFoundError: If the input video file doesn't exist
+    """
     # Convert to absolute path
     video_path = os.path.abspath(video_path)
     log_file = os.path.abspath(log_file)
@@ -31,7 +81,22 @@ def validate_inputs(video_path, log_file, output_video):
 
 
 def process_frame(frame, scale, blur_ksize, lower_orange, upper_orange, bg_subtractor):
-    """Process a single frame to detect oranges."""
+    """
+    Process a single frame to detect oranges using color and motion analysis.
+    
+    Args:
+        frame (numpy.ndarray): Input frame from video
+        scale (float): Scaling factor for the frame
+        blur_ksize (tuple): Kernel size for Gaussian blur
+        lower_orange (numpy.ndarray): Lower HSV bounds for orange color
+        upper_orange (numpy.ndarray): Upper HSV bounds for orange color
+        bg_subtractor: Background subtractor object
+        
+    Returns:
+        tuple: (processed_frame, combined_mask)
+            - processed_frame: Frame after scaling
+            - combined_mask: Binary mask combining motion and color detection
+    """
     frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
     blurred = cv2.GaussianBlur(frame, blur_ksize, 0)
 
@@ -51,7 +116,20 @@ def process_frame(frame, scale, blur_ksize, lower_orange, upper_orange, bg_subtr
 
 
 def detect_oranges(combined_mask, frame, MIN_AREA):
-    """Detect oranges in the processed frame."""
+    """
+    Detect oranges in the processed frame using contour detection.
+    
+    Args:
+        combined_mask (numpy.ndarray): Binary mask from process_frame
+        frame (numpy.ndarray): Original frame for drawing
+        MIN_AREA (int): Minimum contour area to consider as an orange
+        
+    Returns:
+        tuple: (frame, input_centroids, detection_count)
+            - frame: Frame with detection boxes and labels
+            - input_centroids: List of (x,y) coordinates for detected oranges
+            - detection_count: Number of oranges detected in current frame
+    """
     contours, _ = cv2.findContours(
         combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
