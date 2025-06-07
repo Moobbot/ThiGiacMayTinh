@@ -173,9 +173,10 @@ def process_frame(frame, scale, blur_ksize, lower_orange, upper_orange, bg_subtr
         bg_subtractor: Background subtractor object
     
     Returns:
-        tuple: (processed_frame, combined_mask)
+        tuple: (processed_frame, combined_mask, fg_mask)
             - processed_frame: Resized frame
             - combined_mask: Binary mask combining motion and color detection
+            - fg_mask: Foreground mask from background subtraction
     """
     frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
     blurred = cv2.GaussianBlur(frame, blur_ksize, 0)
@@ -192,7 +193,7 @@ def process_frame(frame, scale, blur_ksize, lower_orange, upper_orange, bg_subtr
     combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
     combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
 
-    return frame, combined_mask
+    return frame, combined_mask, fg_mask
 
 
 def detect_oranges(combined_mask, frame, MIN_AREA):
@@ -255,206 +256,214 @@ def detect_oranges(combined_mask, frame, MIN_AREA):
     return frame, input_centroids, detection_count
 
 
-# ==== Configuration Parameters ====
-video_path = os.path.join("baitap_nc", "13512739_1080_1920_30fps.mp4")
-log_file = "orange_count_log_yolo_11.csv"
-output_video = "orange_detection_output_yolo_11.mp4"
+def main():
+    """
+    Main function to run the orange detection and counting system.
+    """
+    # ==== Configuration Parameters ====
+    video_path = os.path.join("baitap_nc", "13512739_1080_1920_30fps.mp4")
+    log_file = "orange_count_log_yolo_11.csv"
+    output_video = "orange_detection_output_yolo_11.mp4"
 
-# Image processing parameters
-scale = 0.5  # Frame scaling factor
-blur_ksize = (7, 7)  # Gaussian blur kernel size
-MIN_AREA = 400  # Minimum contour area for detection
-DIST_THRESH = 40  # Distance threshold for centroid tracking
-MAX_MISSED = 5  # Maximum frames an object can be missed before removal
-playback_speed = 0.5  # Video playback speed multiplier
+    # Image processing parameters
+    scale = 0.5  # Frame scaling factor
+    blur_ksize = (7, 7)  # Gaussian blur kernel size
+    MIN_AREA = 400  # Minimum contour area for detection
+    DIST_THRESH = 40  # Distance threshold for centroid tracking
+    MAX_MISSED = 5  # Maximum frames an object can be missed before removal
+    playback_speed = 0.5  # Video playback speed multiplier
 
-# HSV color range for orange detection
-lower_orange = np.array([10, 100, 20])
-upper_orange = np.array([25, 255, 255])
+    # HSV color range for orange detection
+    lower_orange = np.array([10, 100, 20])
+    upper_orange = np.array([25, 255, 255])
 
-# Region of Interest (ROI) polygon coordinates (scaled)
-roi_polygon = np.array(
-    [
-        [0, 320],    # top-left corner
-        [540, 480],  # top-right corner
-        [540, 640],  # bottom-right corner
-        [0, 540],    # bottom-left corner
-    ],
-    dtype=np.int32,
-)
-
-try:
-    # Validate and prepare input/output paths
-    video_path, log_file, output_video = validate_inputs(
-        video_path, log_file, output_video
-    )
-    print(f"Using video: {video_path}")
-    print(f"Log file: {log_file}")
-    print(f"Output video: {output_video}")
-
-    # ==== Initialize Video Processing ====
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise ValueError(f"Could not open video file: {video_path}")
-
-    # Initialize background subtractor with optimized parameters
-    bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-        history=500, varThreshold=50, detectShadows=False
+    # Region of Interest (ROI) polygon coordinates (scaled)
+    roi_polygon = np.array(
+        [
+            [0, 320],    # top-left corner
+            [540, 480],  # top-right corner
+            [540, 640],  # bottom-right corner
+            [0, 540],    # bottom-left corner
+        ],
+        dtype=np.int32,
     )
 
-    # Initialize CSV logging
-    with open(log_file, mode="w", newline="") as csv_file:
-        csv_writer = csv.writer(csv_file)
-        csv_writer.writerow(["Time(s)", "Count"])
+    try:
+        # Validate and prepare input/output paths
+        video_path, log_file, output_video = validate_inputs(
+            video_path, log_file, output_video
+        )
+        print(f"Using video: {video_path}")
+        print(f"Log file: {log_file}")
+        print(f"Output video: {output_video}")
 
-        # Read first frame to get video properties
-        ret, frame = cap.read()
-        if not ret:
-            raise ValueError("Could not read video frame.")
+        # ==== Initialize Video Processing ====
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video file: {video_path}")
 
-        print(f"Original video dimensions: {frame.shape[1]}x{frame.shape[0]} pixels")
-        frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
-        frame_h, frame_w = frame.shape[:2]
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        # Initialize background subtractor with optimized parameters
+        bg_subtractor = cv2.createBackgroundSubtractorMOG2(
+            history=500, varThreshold=50, detectShadows=False
+        )
 
-        # ==== Initialize Video Writer ====
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        if fps <= 0:
-            fps = 30  # Default FPS if not available
+        # Initialize CSV logging
+        with open(log_file, mode="w", newline="") as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow(["Time(s)", "Count"])
 
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(output_video, fourcc, fps, (frame_w, frame_h))
+            # Read first frame to get video properties
+            ret, frame = cap.read()
+            if not ret:
+                raise ValueError("Could not read video frame.")
 
-        # ==== Initialize Tracking Variables ====
-        next_id = 0
-        objects = {}
-        total_count = 0
+            print(f"Original video dimensions: {frame.shape[1]}x{frame.shape[0]} pixels")
+            frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
+            frame_h, frame_w = frame.shape[:2]
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
-        # Get total frames for progress tracking
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            # ==== Initialize Video Writer ====
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            if fps <= 0:
+                fps = 30  # Default FPS if not available
 
-        # ==== Main Processing Loop ====
-        with tqdm(total=total_frames, desc="Processing video") as pbar:
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            out = cv2.VideoWriter(output_video, fourcc, fps, (frame_w, frame_h))
 
-                # Process frame and detect oranges
-                frame, combined_mask = process_frame(
-                    frame, scale, blur_ksize, lower_orange, upper_orange, bg_subtractor
-                )
-                frame, input_centroids, detection_count = detect_oranges(
-                    combined_mask, frame, MIN_AREA
-                )
+            # ==== Initialize Tracking Variables ====
+            next_id = 0
+            objects = {}
+            total_count = 0
 
-                # === Update Object Tracking ===
-                updated_ids = set()
-                for cx, cy in input_centroids:
-                    matched = False
-                    for obj_id, data in objects.items():
-                        ox, oy = data["centroid"]
-                        dist = np.hypot(cx - ox, cy - oy)
-                        if dist < DIST_THRESH:
-                            objects[obj_id]["centroid"] = (cx, cy)
-                            objects[obj_id]["missed"] = 0
-                            updated_ids.add(obj_id)
+            # Get total frames for progress tracking
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-                            # Count object if it enters ROI and hasn't been counted
-                            if not data["counted"]:
-                                inside = (
-                                    cv2.pointPolygonTest(roi_polygon, (cx, cy), False)
-                                    >= 0
-                                )
-                                if inside:
-                                    total_count += 1
-                                    time_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
-                                    csv_writer.writerow(
-                                        [f"{time_sec:.2f}", total_count]
+            # ==== Main Processing Loop ====
+            with tqdm(total=total_frames, desc="Processing video") as pbar:
+                while True:
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+
+                    # Process frame and detect oranges
+                    frame, combined_mask, fg_mask = process_frame(
+                        frame, scale, blur_ksize, lower_orange, upper_orange, bg_subtractor
+                    )
+                    frame, input_centroids, detection_count = detect_oranges(
+                        combined_mask, frame, MIN_AREA
+                    )
+
+                    # === Update Object Tracking ===
+                    updated_ids = set()
+                    for cx, cy in input_centroids:
+                        matched = False
+                        for obj_id, data in objects.items():
+                            ox, oy = data["centroid"]
+                            dist = np.hypot(cx - ox, cy - oy)
+                            if dist < DIST_THRESH:
+                                objects[obj_id]["centroid"] = (cx, cy)
+                                objects[obj_id]["missed"] = 0
+                                updated_ids.add(obj_id)
+
+                                # Count object if it enters ROI and hasn't been counted
+                                if not data["counted"]:
+                                    inside = (
+                                        cv2.pointPolygonTest(roi_polygon, (cx, cy), False)
+                                        >= 0
                                     )
-                                    objects[obj_id]["counted"] = True
-                                    objects[obj_id]["id"] = total_count
-                            matched = True
-                            break
-                    if not matched:
-                        objects[next_id] = {
-                            "centroid": (cx, cy),
-                            "counted": False,
-                            "missed": 0,
-                        }
-                        next_id += 1
+                                    if inside:
+                                        total_count += 1
+                                        time_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
+                                        csv_writer.writerow(
+                                            [f"{time_sec:.2f}", total_count]
+                                        )
+                                        objects[obj_id]["counted"] = True
+                                        objects[obj_id]["id"] = total_count
+                                matched = True
+                                break
+                        if not matched:
+                            objects[next_id] = {
+                                "centroid": (cx, cy),
+                                "counted": False,
+                                "missed": 0,
+                            }
+                            next_id += 1
 
-                # Remove objects that haven't been seen for too long
-                for obj_id in list(objects.keys()):
-                    if obj_id not in updated_ids:
-                        objects[obj_id]["missed"] += 1
-                        if objects[obj_id]["missed"] > MAX_MISSED:
-                            del objects[obj_id]
+                    # Remove objects that haven't been seen for too long
+                    for obj_id in list(objects.keys()):
+                        if obj_id not in updated_ids:
+                            objects[obj_id]["missed"] += 1
+                            if objects[obj_id]["missed"] > MAX_MISSED:
+                                del objects[obj_id]
 
-                # === Visualization ===
-                # Draw ROI polygon with semi-transparent overlay
-                cv2.polylines(
-                    frame,
-                    [roi_polygon],
-                    isClosed=True,
-                    color=(255, 0, 255),
-                    thickness=2,
-                )
-                overlay = frame.copy()
-                cv2.fillPoly(overlay, [roi_polygon], (255, 0, 255))
-                alpha = 0.2
-                cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+                    # === Visualization ===
+                    # Draw ROI polygon with semi-transparent overlay
+                    cv2.polylines(
+                        frame,
+                        [roi_polygon],
+                        isClosed=True,
+                        color=(255, 0, 255),
+                        thickness=2,
+                    )
+                    overlay = frame.copy()
+                    cv2.fillPoly(overlay, [roi_polygon], (255, 0, 255))
+                    alpha = 0.2
+                    cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
-                # Display count and object IDs
-                cv2.putText(
-                    frame,
-                    f"Count: {total_count}",
-                    (10, 35),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (255, 255, 255),
-                    2,
-                )
-                for obj_id, data in objects.items():
-                    if data.get("counted", False):
-                        cx, cy = data["centroid"]
-                        count_id = data.get("id", 0)
-                        cv2.putText(
-                            frame,
-                            f"#{count_id}",
-                            (cx - 10, cy - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5,
-                            (255, 255, 0),
-                            2,
-                        )
+                    # Display count and object IDs
+                    cv2.putText(
+                        frame,
+                        f"Count: {total_count}",
+                        (10, 35),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (255, 255, 255),
+                        2,
+                    )
+                    for obj_id, data in objects.items():
+                        if data.get("counted", False):
+                            cx, cy = data["centroid"]
+                            count_id = data.get("id", 0)
+                            cv2.putText(
+                                frame,
+                                f"#{count_id}",
+                                (cx - 10, cy - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5,
+                                (255, 255, 0),
+                                2,
+                            )
 
-                # Display frames
-                cv2.imshow("Detected Oranges", frame)
-                cv2.imshow("Combined Mask", combined_mask)
+                    # Display frames
+                    cv2.imshow("Detected Oranges", frame)
+                    cv2.imshow("Combined Mask", combined_mask)
+                    cv2.imshow("Foreground Mask", fg_mask)
 
-                # Write frame to output video
-                out.write(frame)
-                pbar.update(1)
+                    # Write frame to output video
+                    out.write(frame)
+                    pbar.update(1)
 
-                # Handle frame timing and exit
-                wait_time = int(30 * (1.0 / playback_speed))
-                if cv2.waitKey(wait_time) & 0xFF == 27:
-                    break
+                    # Handle frame timing and exit
+                    wait_time = int(30 * (1.0 / playback_speed))
+                    if cv2.waitKey(wait_time) & 0xFF == 27:
+                        break
 
-    # ==== Cleanup ====
-    cap.release()
-    out.release()
-    cv2.destroyAllWindows()
-
-    print(f"Output video saved to: {output_video}")
-    print(f"Total oranges counted: {total_count}")
-    print(f"Processing complete. Total oranges counted: {total_count}")
-
-except Exception as e:
-    print(f"An error occurred: {str(e)}")
-    if "cap" in locals():
+        # ==== Cleanup ====
         cap.release()
-    if "out" in locals():
         out.release()
-    cv2.destroyAllWindows()
+        cv2.destroyAllWindows()
+
+        print(f"Output video saved to: {output_video}")
+        print(f"Total oranges counted: {total_count}")
+        print(f"Processing complete. Total oranges counted: {total_count}")
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        if "cap" in locals():
+            cap.release()
+        if "out" in locals():
+            out.release()
+        cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
